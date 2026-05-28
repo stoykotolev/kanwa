@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"sync"
 
@@ -61,6 +62,8 @@ func main() {
 	n := maelstrom.NewNode()
 
 	neighbours := []string{}
+
+	// pendingMessages := make(map[string][]float64)
 	n.Handle("topology", func(msg maelstrom.Message) error {
 
 		var body TopologyMessage
@@ -87,12 +90,21 @@ func main() {
 		if !seen {
 			add(body.Message)
 			for _, nh := range neighbours {
-				if err := n.Send(nh, BroadcastMessage{
+
+				if err := n.RPC(nh, BroadcastMessage{
 					Type:    "broadcast",
 					Message: body.Message,
+				}, func(msg maelstrom.Message) error {
+					return nil
 				}); err != nil {
-					return err
+					fmt.Println(err.Error())
 				}
+				// if err := n.Send(nh, BroadcastMessage{
+				// 	Type:    "broadcast",
+				// 	Message: body.Message,
+				// }); err != nil {
+				// 	return err
+				// }
 			}
 		}
 
