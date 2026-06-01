@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"sync"
 
@@ -44,18 +43,42 @@ var (
 )
 
 // Add
-func add(msg float64) {
+func add_messages(msg float64) {
 	mu.Lock()
 	defer mu.Unlock()
 	messages[msg] = struct{}{}
 }
 
 // Check
-func has(msg float64) bool {
+func has_message(msg float64) bool {
 	mu.RLock()
 	defer mu.RUnlock()
 	_, ok := messages[msg]
 	return ok
+}
+
+var (
+	pending_mu sync.RWMutex
+	pending    = make(map[string][]float64)
+)
+
+// Add
+func add_pending(neighbor string, msg float64) {
+	pending_mu.Lock()
+	defer pending_mu.Unlock()
+	pending[neighbor] = append(pending[neighbor], msg)
+}
+
+func delete_pending(neighbor string, msg float64) {
+	pending_mu.Lock()
+	defer pending_mu.Unlock()
+	msgs := pending[neighbor]
+	for i, m := range msgs {
+		if m == msg {
+			pending[neighbor] = append(msgs[:i], msgs[i+1:]...)
+			return
+		}
+	}
 }
 
 func main() {
@@ -63,7 +86,6 @@ func main() {
 
 	neighbours := []string{}
 
-	// pendingMessages := make(map[string][]float64)
 	n.Handle("topology", func(msg maelstrom.Message) error {
 
 		var body TopologyMessage
@@ -85,26 +107,19 @@ func main() {
 			return err
 		}
 
-		seen := has(body.Message)
+		seen := has_message(body.Message)
 
 		if !seen {
-			add(body.Message)
+			add_messages(body.Message)
 			for _, nh := range neighbours {
-
-				if err := n.RPC(nh, BroadcastMessage{
+				add_pending(nh, body.Message)
+				n.RPC(nh, BroadcastMessage{
 					Type:    "broadcast",
 					Message: body.Message,
 				}, func(msg maelstrom.Message) error {
+					delete_pending(nh, body.Message)
 					return nil
-				}); err != nil {
-					fmt.Println(err.Error())
-				}
-				// if err := n.Send(nh, BroadcastMessage{
-				// 	Type:    "broadcast",
-				// 	Message: body.Message,
-				// }); err != nil {
-				// 	return err
-				// }
+				})
 			}
 		}
 
