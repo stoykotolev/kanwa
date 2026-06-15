@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"sync"
+	"time"
 
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 )
@@ -86,6 +87,42 @@ func main() {
 
 	neighbours := []string{}
 
+	ticker := time.NewTicker(15 * time.Second)
+	shutdown := make(chan bool)
+
+	go func() {
+
+		for {
+			select {
+			case <-shutdown:
+				return
+			case <-ticker.C:
+				copyMap := make(map[string][]float64)
+				pending_mu.RLock()
+				for k, v := range pending {
+					copyMap[k] = make([]float64, len(v))
+					copy(copyMap[k], v)
+				}
+				pending_mu.RUnlock()
+
+				for nh, msgs := range copyMap {
+					for _, msg := range msgs {
+						if err := n.RPC(nh, BroadcastMessage{
+							Type:    "broadcast",
+							Message: msg,
+						}, func(m maelstrom.Message) error {
+							delete_pending(nh, msg)
+							return nil
+						}); err != nil {
+							log.Println("Failed sending message for neighbor", nh)
+						}
+					}
+				}
+			}
+		}
+
+	}()
+
 	n.Handle("topology", func(msg maelstrom.Message) error {
 
 		var body TopologyMessage
@@ -113,13 +150,15 @@ func main() {
 			add_messages(body.Message)
 			for _, nh := range neighbours {
 				add_pending(nh, body.Message)
-				n.RPC(nh, BroadcastMessage{
+				if err := n.RPC(nh, BroadcastMessage{
 					Type:    "broadcast",
 					Message: body.Message,
 				}, func(msg maelstrom.Message) error {
 					delete_pending(nh, body.Message)
 					return nil
-				})
+				}); err != nil {
+					log.Println("Failed something. ", err.Error())
+				}
 			}
 		}
 
@@ -149,6 +188,8 @@ func main() {
 	})
 
 	if err := n.Run(); err != nil {
+		ticker.Stop()
+		shutdown <- true
 		log.Fatal(err)
 	}
 }
