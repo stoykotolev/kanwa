@@ -38,14 +38,12 @@ var (
 	messages = make(map[float64]struct{})
 )
 
-// Add
 func addMessages(msg float64) {
 	mu.Lock()
 	defer mu.Unlock()
 	messages[msg] = struct{}{}
 }
 
-// Check
 func hasMessage(msg float64) bool {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -58,14 +56,12 @@ var (
 	pending    = make(map[string][]float64)
 )
 
-// Add
 func addPending(neighbor string, msg float64) {
 	pending_mu.Lock()
 	defer pending_mu.Unlock()
 	pending[neighbor] = append(pending[neighbor], msg)
 }
 
-// Delete
 func deletePending(neighbor string, msg float64) {
 	pending_mu.Lock()
 	defer pending_mu.Unlock()
