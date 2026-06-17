@@ -10,9 +10,9 @@ import (
 )
 
 type BroadcastMessage struct {
-	Type      string  `json:"type"`
-	MessageId *int    `json:"msg_id"`
-	Message   float64 `json:"message"`
+	Type      string `json:"type"`
+	MessageId *int   `json:"msg_id"`
+	Message   int    `json:"message"`
 }
 
 type BroadcastResponse struct {
@@ -29,22 +29,22 @@ type TopologyResponse struct {
 }
 
 type ReadResponse struct {
-	Type     string    `json:"type"`
-	Messages []float64 `json:"messages"`
+	Type     string `json:"type"`
+	Messages []int  `json:"messages"`
 }
 
 var (
 	mu       sync.RWMutex
-	messages = make(map[float64]struct{})
+	messages = make(map[int]struct{})
 )
 
-func addMessages(msg float64) {
+func addMessages(msg int) {
 	mu.Lock()
 	defer mu.Unlock()
 	messages[msg] = struct{}{}
 }
 
-func hasMessage(msg float64) bool {
+func hasMessage(msg int) bool {
 	mu.RLock()
 	defer mu.RUnlock()
 	_, ok := messages[msg]
@@ -53,16 +53,16 @@ func hasMessage(msg float64) bool {
 
 var (
 	pending_mu sync.RWMutex
-	pending    = make(map[string][]float64)
+	pending    = make(map[string][]int)
 )
 
-func addPending(neighbor string, msg float64) {
+func addPending(neighbor string, msg int) {
 	pending_mu.Lock()
 	defer pending_mu.Unlock()
 	pending[neighbor] = append(pending[neighbor], msg)
 }
 
-func deletePending(neighbor string, msg float64) {
+func deletePending(neighbor string, msg int) {
 	pending_mu.Lock()
 	defer pending_mu.Unlock()
 	msgs := pending[neighbor]
@@ -89,10 +89,10 @@ func main() {
 			case <-shutdown:
 				return
 			case <-ticker.C:
-				copyMap := make(map[string][]float64)
+				copyMap := make(map[string][]int)
 				pending_mu.RLock()
 				for k, v := range pending {
-					copyMap[k] = make([]float64, len(v))
+					copyMap[k] = make([]int, len(v))
 					copy(copyMap[k], v)
 				}
 				pending_mu.RUnlock()
@@ -166,7 +166,7 @@ func main() {
 	n.Handle("read", func(msg maelstrom.Message) error {
 		// defer avoided intentionally; read handler is on the hot path
 		mu.RLock()
-		values := make([]float64, 0, len(messages))
+		values := make([]int, 0, len(messages))
 		for k := range messages {
 			values = append(values, k)
 		}
