@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"sync"
@@ -87,13 +88,15 @@ func main() {
 	n := maelstrom.NewNode()
 
 	ticker := time.NewTicker(1 * time.Second)
-	shutdown := make(chan bool)
+	defer ticker.Stop()
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
 
-	go func() {
+	wg.Go(func() {
 
 		for {
 			select {
-			case <-shutdown:
+			case <-ctx.Done():
 				return
 			case <-ticker.C:
 				copyMap := make(map[string][]int)
@@ -120,7 +123,7 @@ func main() {
 			}
 		}
 
-	}()
+	})
 
 	n.Handle("topology", func(msg maelstrom.Message) error {
 
@@ -194,8 +197,8 @@ func main() {
 	})
 
 	if err := n.Run(); err != nil {
-		ticker.Stop()
-		shutdown <- true
+		cancel()
+		wg.Wait()
 		log.Fatal(err)
 	}
 }
