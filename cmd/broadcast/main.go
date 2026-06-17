@@ -19,11 +19,6 @@ type BroadcastResponse struct {
 	Type string `json:"type"`
 }
 
-type BroadcastNeighbour struct {
-	Type     string    `json:"type"`
-	Messages []float64 `json:"messages"`
-}
-
 type TopologyMessage struct {
 	Type     string              `json:"type"`
 	Topology map[string][]string `json:"topology"`
