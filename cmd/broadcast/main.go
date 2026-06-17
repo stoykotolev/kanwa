@@ -74,10 +74,13 @@ func deletePending(neighbor string, msg int) {
 	}
 }
 
+var neighbours struct {
+	mu   sync.RWMutex
+	data []string
+}
+
 func main() {
 	n := maelstrom.NewNode()
-
-	var neighbours []string
 
 	ticker := time.NewTicker(1 * time.Second)
 	shutdown := make(chan bool)
@@ -122,7 +125,9 @@ func main() {
 			return err
 		}
 
-		neighbours = body.Topology[n.ID()]
+		neighbours.mu.Lock()
+		defer neighbours.mu.Unlock()
+		neighbours.data = body.Topology[n.ID()]
 
 		var responseBody = TopologyResponse{Type: "topology_ok"}
 
@@ -140,7 +145,10 @@ func main() {
 
 		if !seen {
 			addMessages(body.Message)
-			for _, nh := range neighbours {
+
+			// defer avoided intentionally; broadcast handler is on the hot path
+			neighbours.mu.RLock()
+			for _, nh := range neighbours.data {
 				addPending(nh, body.Message)
 				if err := n.RPC(nh, BroadcastMessage{
 					Type:    "broadcast",
@@ -152,6 +160,7 @@ func main() {
 					log.Println("Failed something. ", err.Error())
 				}
 			}
+			neighbours.mu.RUnlock()
 		}
 
 		if body.MessageId != nil {
