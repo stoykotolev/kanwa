@@ -77,7 +77,7 @@ func deletePending(neighbor string, msg float64) {
 func main() {
 	n := maelstrom.NewNode()
 
-	neighbours := []string{}
+	var neighbours []string
 
 	ticker := time.NewTicker(1 * time.Second)
 	shutdown := make(chan bool)
