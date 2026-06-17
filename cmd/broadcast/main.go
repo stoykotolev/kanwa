@@ -33,42 +33,46 @@ type ReadResponse struct {
 	Messages []int  `json:"messages"`
 }
 
-var (
+var seen = struct {
 	mu       sync.RWMutex
-	messages = make(map[int]struct{})
-)
+	messages map[int]struct{}
+}{
+	messages: make(map[int]struct{}),
+}
 
 func addMessages(msg int) {
-	mu.Lock()
-	defer mu.Unlock()
-	messages[msg] = struct{}{}
+	seen.mu.Lock()
+	defer seen.mu.Unlock()
+	seen.messages[msg] = struct{}{}
 }
 
 func hasMessage(msg int) bool {
-	mu.RLock()
-	defer mu.RUnlock()
-	_, ok := messages[msg]
+	seen.mu.RLock()
+	defer seen.mu.RUnlock()
+	_, ok := seen.messages[msg]
 	return ok
 }
 
-var (
-	pending_mu sync.RWMutex
-	pending    = make(map[string][]int)
-)
+var pending = struct {
+	mu       sync.RWMutex
+	messages map[string][]int
+}{
+	messages: make(map[string][]int),
+}
 
 func addPending(neighbor string, msg int) {
-	pending_mu.Lock()
-	defer pending_mu.Unlock()
-	pending[neighbor] = append(pending[neighbor], msg)
+	pending.mu.Lock()
+	defer pending.mu.Unlock()
+	pending.messages[neighbor] = append(pending.messages[neighbor], msg)
 }
 
 func deletePending(neighbor string, msg int) {
-	pending_mu.Lock()
-	defer pending_mu.Unlock()
-	msgs := pending[neighbor]
+	pending.mu.Lock()
+	defer pending.mu.Unlock()
+	msgs := pending.messages[neighbor]
 	for i, m := range msgs {
 		if m == msg {
-			pending[neighbor] = append(msgs[:i], msgs[i+1:]...)
+			pending.messages[neighbor] = append(msgs[:i], msgs[i+1:]...)
 			return
 		}
 	}
@@ -93,12 +97,12 @@ func main() {
 				return
 			case <-ticker.C:
 				copyMap := make(map[string][]int)
-				pending_mu.RLock()
-				for k, v := range pending {
+				pending.mu.RLock()
+				for k, v := range pending.messages {
 					copyMap[k] = make([]int, len(v))
 					copy(copyMap[k], v)
 				}
-				pending_mu.RUnlock()
+				pending.mu.RUnlock()
 
 				for nh, msgs := range copyMap {
 					for _, msg := range msgs {
@@ -141,9 +145,9 @@ func main() {
 			return err
 		}
 
-		seen := hasMessage(body.Message)
+		msgSeen := hasMessage(body.Message)
 
-		if !seen {
+		if !msgSeen {
 			addMessages(body.Message)
 
 			// defer avoided intentionally; broadcast handler is on the hot path
@@ -174,12 +178,12 @@ func main() {
 
 	n.Handle("read", func(msg maelstrom.Message) error {
 		// defer avoided intentionally; read handler is on the hot path
-		mu.RLock()
-		values := make([]int, 0, len(messages))
-		for k := range messages {
+		seen.mu.RLock()
+		values := make([]int, 0, len(seen.messages))
+		for k := range seen.messages {
 			values = append(values, k)
 		}
-		mu.RUnlock()
+		seen.mu.RUnlock()
 
 		var body = ReadResponse{
 			Type:     "read_ok",
