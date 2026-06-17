@@ -164,6 +164,7 @@ func main() {
 	})
 
 	n.Handle("read", func(msg maelstrom.Message) error {
+		// defer avoided intentionally; read handler is on the hot path
 		mu.RLock()
 		values := make([]float64, 0, len(messages))
 		for k := range messages {
