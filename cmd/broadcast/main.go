@@ -44,14 +44,14 @@ var (
 )
 
 // Add
-func add_messages(msg float64) {
+func addMessages(msg float64) {
 	mu.Lock()
 	defer mu.Unlock()
 	messages[msg] = struct{}{}
 }
 
 // Check
-func has_message(msg float64) bool {
+func hasMessage(msg float64) bool {
 	mu.RLock()
 	defer mu.RUnlock()
 	_, ok := messages[msg]
@@ -64,13 +64,14 @@ var (
 )
 
 // Add
-func add_pending(neighbor string, msg float64) {
+func addPending(neighbor string, msg float64) {
 	pending_mu.Lock()
 	defer pending_mu.Unlock()
 	pending[neighbor] = append(pending[neighbor], msg)
 }
 
-func delete_pending(neighbor string, msg float64) {
+// Delete
+func deletePending(neighbor string, msg float64) {
 	pending_mu.Lock()
 	defer pending_mu.Unlock()
 	msgs := pending[neighbor]
@@ -111,7 +112,7 @@ func main() {
 							Type:    "broadcast",
 							Message: msg,
 						}, func(m maelstrom.Message) error {
-							delete_pending(nh, msg)
+							deletePending(nh, msg)
 							return nil
 						}); err != nil {
 							log.Println("Failed sending message for neighbor", nh)
@@ -144,17 +145,17 @@ func main() {
 			return err
 		}
 
-		seen := has_message(body.Message)
+		seen := hasMessage(body.Message)
 
 		if !seen {
-			add_messages(body.Message)
+			addMessages(body.Message)
 			for _, nh := range neighbours {
-				add_pending(nh, body.Message)
+				addPending(nh, body.Message)
 				if err := n.RPC(nh, BroadcastMessage{
 					Type:    "broadcast",
 					Message: body.Message,
 				}, func(msg maelstrom.Message) error {
-					delete_pending(nh, body.Message)
+					deletePending(nh, body.Message)
 					return nil
 				}); err != nil {
 					log.Println("Failed something. ", err.Error())
