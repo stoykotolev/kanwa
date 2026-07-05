@@ -93,7 +93,6 @@ func main() {
 	var wg sync.WaitGroup
 
 	wg.Go(func() {
-
 		for {
 			select {
 			case <-ctx.Done():
@@ -122,11 +121,9 @@ func main() {
 				}
 			}
 		}
-
 	})
 
 	n.Handle("topology", func(msg maelstrom.Message) error {
-
 		var body TopologyMessage
 		if err := json.Unmarshal(msg.Body, &body); err != nil {
 			return err
@@ -136,13 +133,12 @@ func main() {
 		defer neighbours.mu.Unlock()
 		neighbours.data = body.Topology[n.ID()]
 
-		var responseBody = TopologyResponse{Type: "topology_ok"}
+		responseBody := TopologyResponse{Type: "topology_ok"}
 
 		return n.Reply(msg, responseBody)
 	})
 
 	n.Handle("broadcast", func(msg maelstrom.Message) error {
-
 		var body BroadcastMessage
 		if err := json.Unmarshal(msg.Body, &body); err != nil {
 			return err
@@ -188,7 +184,7 @@ func main() {
 		}
 		seen.mu.RUnlock()
 
-		var body = ReadResponse{
+		body := ReadResponse{
 			Type:     "read_ok",
 			Messages: values,
 		}
