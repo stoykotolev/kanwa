@@ -23,6 +23,9 @@ test/multi-broadcast: bin/broadcast
 test/ft-broadcast: bin/broadcast
 	$(MAELSTROM) test -w broadcast --bin bin/broadcast --node-count 5 --time-limit 20 --rate 10 --nemesis partition
 
+test/ebo: bin/broadcast
+	$(MAELSTROM) test -w broadcast --bin bin/broadcast --node-count 25 --time-limit 20 --rate 100 --latency 100
+
 clean:
 	rm -f $(CHALLENGES:%=bin/%)
 
