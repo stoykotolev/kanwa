@@ -1,12 +1,14 @@
 MAELSTROM := ../maelstrom/maelstrom
 CHALLENGES := $(patsubst cmd/%/,%,$(wildcard cmd/*/))
 
-.PHONY: build clean $(CHALLENGES:%=test/%)
+.PHONY: build clean FORCE $(CHALLENGES:%=test/%)
 
 build: $(CHALLENGES:%=bin/%)
 
-bin/%:
+bin/%: FORCE
 	go build -o $@ ./cmd/$*
+
+FORCE:
 
 test/echo: bin/echo
 	$(MAELSTROM) test -w echo --bin bin/echo --node-count 1 --time-limit 10
