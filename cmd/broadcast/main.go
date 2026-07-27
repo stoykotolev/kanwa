@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
+	"strconv"
 	"sync"
 	"time"
 
@@ -32,6 +34,11 @@ type TopologyResponse struct {
 type ReadResponse struct {
 	Type     string `json:"type"`
 	Messages []int  `json:"messages"`
+}
+
+type Node struct {
+	parent   string
+	children []string
 }
 
 var seen = struct {
@@ -129,9 +136,45 @@ func main() {
 			return err
 		}
 
+		topo := make(map[string]*Node)
+
+		for n := range body.Topology {
+			node := &Node{}
+			id, err := strconv.Atoi(n[1:])
+			if err != nil {
+				log.Println("failed conversion", err)
+				continue
+			}
+
+			// id is 0, this is root
+			if id == 0 {
+				node.children = []string{"n1", "n2", "n3", "n4"}
+				topo["n0"] = node
+				continue
+			}
+
+			// calculate index for the rest;
+			idx := id / 5
+			node.parent = "n" + strconv.Itoa(idx)
+
+			if id*5 < len(body.Topology) {
+				children := make([]string, 0, 5)
+				for i := range 5 {
+					children = append(children, fmt.Sprintf("n%d", 5*id+i))
+				}
+				node.children = children
+			}
+
+			topo[n] = node
+		}
+
 		neighbours.mu.Lock()
 		defer neighbours.mu.Unlock()
-		neighbours.data = body.Topology[n.ID()]
+		neighbours.data = append([]string{}, topo[n.ID()].children...)
+		p := topo[n.ID()].parent
+		if p != "" {
+			neighbours.data = append(neighbours.data, p)
+		}
 
 		responseBody := TopologyResponse{Type: "topology_ok"}
 
