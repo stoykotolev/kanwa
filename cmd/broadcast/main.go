@@ -152,11 +152,14 @@ func main() {
 			// defer avoided intentionally; broadcast handler is on the hot path
 			neighbours.mu.RLock()
 			for _, nh := range neighbours.data {
+				if msg.Src == nh {
+					continue
+				}
 				addPending(nh, body.Message)
 				if err := n.RPC(nh, BroadcastMessage{
 					Type:    "broadcast",
 					Message: body.Message,
-				}, func(msg maelstrom.Message) error {
+				}, func(m maelstrom.Message) error {
 					deletePending(nh, body.Message)
 					return nil
 				}); err != nil {
