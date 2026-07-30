@@ -36,6 +36,14 @@ type ReadResponse struct {
 	Messages []int  `json:"messages"`
 }
 
+type SyncMessage struct {
+	Type    string `json:"type"`
+	Pending []int  `json:"pending"`
+}
+type SyncResponse struct {
+	Type string `json:"type"`
+}
+
 type Node struct {
 	parent   string
 	children []string
@@ -113,21 +121,39 @@ func main() {
 				}
 				pending.mu.RUnlock()
 
-				for nh, msgs := range copyMap {
-					for _, msg := range msgs {
-						if err := n.RPC(nh, BroadcastMessage{
-							Type:    "broadcast",
-							Message: msg,
-						}, func(m maelstrom.Message) error {
+				for nh, values := range copyMap {
+					if len(values) == 0 {
+						continue
+					}
+					if err := n.RPC(nh, SyncMessage{
+						Type:    "sync",
+						Pending: values,
+					}, func(msg maelstrom.Message) error {
+						for _, msg := range values {
 							deletePending(nh, msg)
-							return nil
-						}); err != nil {
-							log.Println("Failed sending message for neighbor", nh)
 						}
+						return nil
+					}); err != nil {
+						log.Println("Failed sending message for neighbor", nh)
 					}
 				}
 			}
 		}
+	})
+
+	n.Handle("sync", func(msg maelstrom.Message) error {
+		var body SyncMessage
+		if err := json.Unmarshal(msg.Body, &body); err != nil {
+			return err
+		}
+		// body.pending
+		for _, val := range body.Pending {
+			forwardMsg(val, msg.Src, n)
+		}
+
+		return n.Reply(msg, SyncResponse{
+			Type: "sync_ok",
+		})
 	})
 
 	n.Handle("topology", func(msg maelstrom.Message) error {
@@ -187,30 +213,7 @@ func main() {
 			return err
 		}
 
-		msgSeen := hasMessage(body.Message)
-
-		if !msgSeen {
-			addMessages(body.Message)
-
-			// defer avoided intentionally; broadcast handler is on the hot path
-			neighbours.mu.RLock()
-			for _, nh := range neighbours.data {
-				if msg.Src == nh {
-					continue
-				}
-				addPending(nh, body.Message)
-				if err := n.RPC(nh, BroadcastMessage{
-					Type:    "broadcast",
-					Message: body.Message,
-				}, func(m maelstrom.Message) error {
-					deletePending(nh, body.Message)
-					return nil
-				}); err != nil {
-					log.Println("Failed something. ", err.Error())
-				}
-			}
-			neighbours.mu.RUnlock()
-		}
+		forwardMsg(body.Message, msg.Src, n)
 
 		if body.MessageId != nil {
 			return n.Reply(msg, BroadcastResponse{
@@ -242,5 +245,29 @@ func main() {
 		cancel()
 		wg.Wait()
 		log.Fatal(err)
+	}
+}
+
+func forwardMsg(msg int, sender string, n *maelstrom.Node) {
+	msgSeen := hasMessage(msg)
+
+	if !msgSeen {
+		addMessages(msg)
+
+		// defer avoided intentionally; broadcast handler is on the hot path
+		neighbours.mu.RLock()
+		for _, nh := range neighbours.data {
+			if sender == nh {
+				continue
+			}
+			addPending(nh, msg)
+			if err := n.Send(nh, BroadcastMessage{
+				Type:    "broadcast",
+				Message: msg,
+			}); err != nil {
+				log.Println("Failed something. ", err.Error())
+			}
+		}
+		neighbours.mu.RUnlock()
 	}
 }
