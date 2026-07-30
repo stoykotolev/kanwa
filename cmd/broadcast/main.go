@@ -174,7 +174,11 @@ func main() {
 
 			// id is 0, this is root
 			if id == 0 {
-				node.children = []string{"n1", "n2", "n3", "n4"}
+				children := make([]string, 0, 4)
+				for i := 1; i <= 4 && i < len(body.Topology); i++ {
+					children = append(children, fmt.Sprintf("n%d", i))
+				}
+				node.children = children
 				topo["n0"] = node
 				continue
 			}
