@@ -29,7 +29,7 @@ test/ebo: bin/broadcast
 	$(MAELSTROM) test -w broadcast --bin bin/broadcast --node-count 25 --time-limit 20 --rate 100 --latency 100
 
 test/gc: bin/g-counter 
-	$(MAELSTROM) test -w g-counter --bin ~/go/bin/maelstrom-counter --node-count 3 --rate 100 --time-limit 20 --nemesis partition
+	$(MAELSTROM) test -w g-counter --bin bin/g-counter --node-count 3 --rate 100 --time-limit 20 --nemesis partition
 
 clean:
 	rm -f $(CHALLENGES:%=bin/%)
