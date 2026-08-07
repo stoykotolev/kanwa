@@ -54,13 +54,19 @@ func main() {
 	})
 
 	n.Handle("read", func(msg maelstrom.Message) error {
-		v, err := kv.ReadInt(ctx, "value")
-		if err != nil {
-			log.Printf("Failed getting value from kv store. %s", err.Error())
+		val, readErr := kv.ReadInt(ctx, "value")
+		for readErr != nil {
+			switch maelstrom.ErrorCode(readErr) {
+			case maelstrom.KeyDoesNotExist:
+				val = 0
+				readErr = nil
+			default:
+				val, readErr = kv.ReadInt(ctx, "value")
+			}
 		}
 		return n.Reply(msg, ReadResponse{
 			Type:  "read_ok",
-			Value: v,
+			Value: val,
 		})
 	})
 
