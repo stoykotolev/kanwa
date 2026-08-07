@@ -36,8 +36,17 @@ func main() {
 		if err != nil {
 			log.Printf("Failed getting value from kv store. %s", err.Error())
 		}
-		if err := kv.Write(ctx, "value", nv+v); err != nil {
-			log.Printf("Failed setting value in kv store. %s", err.Error())
+		var insertErr error
+		insertErr = kv.CompareAndSwap(ctx, "value", v, nv+v, true)
+		for insertErr != nil {
+			switch maelstrom.ErrorCode(insertErr) {
+			case maelstrom.PreconditionFailed:
+				uv, err := kv.ReadInt(ctx, "value")
+				if err != nil {
+					log.Printf("Failed getting value from kv store. %s", err.Error())
+				}
+				insertErr = kv.CompareAndSwap(ctx, "value", uv, nv+uv, true)
+			}
 		}
 		return n.Reply(msg, AddResponse{
 			Type: "add_ok",
